@@ -1,0 +1,8 @@
+{
+  "name": "カラーポップス",
+  "description": "マルチプレイ対応の落ち物パズルゲーム。カラーブロックを繋げて消そう！",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

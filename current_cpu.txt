@@ -1,0 +1,108 @@
+  useEffect(() => {
+    if (!isHost || !isCpuTurn || gameState.status !== 'playing') return;
+    
+    const timer = setTimeout(() => {
+      const currentState = gameStateRef.current;
+      const currentActivePlayer = currentState.players[currentState.currentPlayerIndex];
+      const hand = currentActivePlayer.hand;
+      if (hand.length === 0) {
+         endTurn(currentState, updateState);
+         return;
+      }
+      
+      const availableCols = [0, 1, 2].filter(c => currentState.columns[c].length < 40);
+      if (availableCols.length === 0) {
+         endTurn(currentState, updateState);
+         return;
+      }
+
+      const randomCardIdx = Math.floor(Math.random() * hand.length);
+      const cardToPlayBase = hand[randomCardIdx];
+      
+      if (cardToPlayBase.color === 'gravity' || cardToPlayBase.color === 'tornado') {
+        let newPlayers = [...currentState.players];
+        newPlayers = recordSpecialCardUse(newPlayers, currentState.currentPlayerIndex, cardToPlayBase);
+        let newDeck = [...currentState.deck];
+        
+        if (cardToPlayBase.color === 'gravity') {
+          newPlayers[currentState.currentPlayerIndex] = {
+            ...currentActivePlayer,
+            hand: hand.filter((_, i) => i !== randomCardIdx)
+          };
+          const newColumns = currentState.columns.map(col => [...col].reverse());
+          updateState({
+            ...currentState,
+            columns: newColumns,
+            players: newPlayers,
+            gravity: currentState.gravity === 'normal' ? 'reverse' : 'normal',
+            status: 'animating_gravity',
+            comboCount: 0,
+            comboOwnerIndex: currentState.currentPlayerIndex,
+            lastAction: undefined,
+            activeActionCard: { type: 'gravity', playerName: currentActivePlayer.name }
+          });
+        } else {
+          let allCards = [];
+          newPlayers = newPlayers.map(p => {
+            allCards.push(...p.hand);
+            return { ...p, hand: [] };
+          });
+          allCards = allCards.filter(c => c.id !== cardToPlayBase.id);
+          for (let i = allCards.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [allCards[i], allCards[j]] = [allCards[j], allCards[i]];
+          }
+          newPlayers = newPlayers.map((p, idx) => {
+            const newHand = [];
+            let cardsToDeal = currentState.players[idx].hand.length;
+            if (idx === currentState.currentPlayerIndex) cardsToDeal -= 1;
+            
+            for (let i = 0; i < cardsToDeal; i++) {
+              if (allCards.length > 0) newHand.push(allCards.pop());
+            }
+            return { ...p, hand: newHand };
+          });
+          const newState = { ...currentState, players: newPlayers, deck: newDeck, activeActionCard: { type: 'tornado', playerName: currentActivePlayer.name } as any };
+          endTurn(newState, updateState);
+        }
+        return;
+      }
+      
+      const randomCol = availableCols[Math.floor(Math.random() * availableCols.length)];
+      const randomType = Math.random() > 0.5 ? 'top' : 'bottom';
+      
+      playDrop();
+      const cardToPlay = { ...cardToPlayBase, entry: randomType as 'top' | 'bottom' };
+      if (cardToPlay.color === 'chameleon') { 
+         const cols = ['red', 'blue', 'green', 'yellow'];
+         cardToPlay.chameleonColor = cols[Math.floor(Math.random() * cols.length)];
+      }
+      
+      let newDeck = [...currentState.deck];
+      let newPlayers = [...currentState.players];
+      newPlayers[currentState.currentPlayerIndex] = {
+        ...currentActivePlayer,
+        hand: hand.filter((_, i) => i !== randomCardIdx)
+      };
+      
+      let newColumns = [...currentState.columns];
+      
+      const actualActionType = currentState.gravity === 'reverse' ? (randomType === 'top' ? 'bottom' : 'top') : randomType;
+      if (actualActionType === 'top') {
+        newColumns[randomCol] = [...newColumns[randomCol], cardToPlay];
+      } else {
+        newColumns[randomCol] = [cardToPlay, ...newColumns[randomCol]];
+      }
+      
+      updateState({
+        ...currentState,
+        players: newPlayers,
+        deck: newDeck,
+        columns: newColumns,
+        lastAction: { col: randomCol, type: randomType as 'top' | 'bottom' },
+        status: 'animating_gravity',
+        comboCount: 0,
+        comboOwnerIndex: currentState.currentPlayerIndex
+      });
+    }, 1500);
+    
